@@ -12,7 +12,6 @@ public class VisualModClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		VisualConfig.load();
-		OreGlow.register();
-		LOGGER.info("Visual Mod loaded (ore glow: {}, dynamic lights: {})", VisualConfig.oreGlow, VisualConfig.dynamicLights);
+		LOGGER.info("Visual Mod loaded (dynamic lights: {})", VisualConfig.dynamicLights);
 	}
 }

@@ -3,7 +3,7 @@
 	"id": "visualmod",
 	"version": "${version}",
 	"name": "Visual Mod",
-	"description": "Small, lightweight client-side visual improvements: ore pixels that are always fully lit, and dynamic light from held/dropped light sources.",
+	"description": "Lightweight client-side dynamic lights: held, worn and dropped light sources light up their surroundings.",
 	"authors": [
 		"Max Lettner"
 	],

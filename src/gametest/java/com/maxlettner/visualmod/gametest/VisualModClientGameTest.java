@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import org.spongepowered.asm.mixin.MixinEnvironment;
@@ -17,12 +16,11 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 
 import com.maxlettner.visualmod.DynamicLights;
-import com.maxlettner.visualmod.VisualConfig;
 import com.maxlettner.visualmod.VisualModClient;
 
 /**
- * Builds a sealed, pitch-black stone room with ores on the far wall, then checks each feature
- * with screenshots and a brightness measurement of the middle of the screen.
+ * Builds a sealed, pitch-black stone room, then checks each dynamic light source with screenshots
+ * and a brightness measurement of the whole screen.
  *
  * <p>Run with {@code ./gradlew runClientGameTest}. Screenshots end up in {@code build/run/clientGameTest/screenshots}.
  */
@@ -44,13 +42,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			cmd(singleplayer, "gamerule send_command_feedback false");
 			cmd(singleplayer, "time set midnight");
 			cmd(singleplayer, "fill %d %d %d %d %d %d minecraft:stone hollow", x - 5, y - 1, z - 5, x + 5, y + 5, z + 5);
-			// Ores on the north wall.
-			cmd(singleplayer, "setblock %d %d %d minecraft:diamond_ore", x - 2, y + 1, z - 5);
-			cmd(singleplayer, "setblock %d %d %d minecraft:iron_ore", x, y + 1, z - 5);
-			cmd(singleplayer, "setblock %d %d %d minecraft:coal_ore", x + 2, y + 1, z - 5);
-			cmd(singleplayer, "setblock %d %d %d minecraft:gold_ore", x - 1, y + 2, z - 5);
-			cmd(singleplayer, "setblock %d %d %d minecraft:emerald_ore", x + 1, y + 2, z - 5);
-			// Stand 4 blocks from the ore wall, with the HUD hidden so only the world is measured.
+			// Stand 4 blocks from the north wall, with the HUD hidden so only the world is measured.
 			cmd(singleplayer, "tp @p %d.5 %d %d.5 180 0", x, y, z - 1);
 			context.runOnClient(client -> {
 				if (!client.gui.hud.isHidden()) {
@@ -62,9 +54,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			settle(context, singleplayer);
 
 			double dark = shot(context, "1_dark_room_empty_hand");
-			double brightOn = lastBrightShare;
-			check(brightOn > 0.01, "ore pixels render bright in a pitch-dark room (%.1f%% of the screen)".formatted(brightOn * 100));
-			check(dark < 40, "the rock around the ores stays dark (mean brightness %.1f)".formatted(dark));
+			check(dark < 20, "the sealed room is dark without a light source (mean brightness %.1f)".formatted(dark));
 			check(!context.computeOnClient(client -> DynamicLights.hasSources()), "no light sources with an empty hand");
 
 			// Held torch must light up the room.
@@ -96,17 +86,6 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			double dropped = shot(context, "5_dropped_glowstone");
 			check(dropped > dark * 1.3, "dropped glowstone lights the room (%.1f)".formatted(dropped));
 			cmd(singleplayer, "kill @e[type=minecraft:item]");
-			settle(context, singleplayer);
-
-			// Ore glow off, for comparison with screenshot 1.
-			VisualConfig.oreGlow = false;
-			CompletableFuture<?> reload = context.computeOnClient(client -> client.reloadResourcePacks());
-			context.waitFor(client -> reload.isDone() && client.gui.overlay() == null, 20 * 60 * 5);
-			settle(context, singleplayer);
-			double noGlow = shot(context, "6_ore_glow_off");
-			check(lastBrightShare < brightOn / 10, "without ore glow almost nothing is bright (%.2f%% vs %.1f%%)".formatted(lastBrightShare * 100, brightOn * 100));
-			check(dark > noGlow + 0.5, "ores are brighter with ore glow on (%.2f on vs %.2f off)".formatted(dark, noGlow));
-			VisualConfig.oreGlow = true;
 		}
 	}
 
@@ -122,13 +101,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 		context.waitTicks(5);
 	}
 
-	/** Share (0-1) of pixels brighter than 100/255 in the last screenshot. */
-	private static double lastBrightShare;
-
-	/**
-	 * Takes a screenshot and returns the mean brightness (0-255) of the whole screen.
-	 * Also stores the share of bright pixels in {@link #lastBrightShare}.
-	 */
+	/** Takes a screenshot and returns the mean brightness (0-255) of the whole screen. */
 	private static double shot(ClientGameTestContext context, String name) {
 		Path path = context.takeScreenshot(name);
 
@@ -136,25 +109,17 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			int w = image.getWidth(), h = image.getHeight();
 			long sum = 0;
 			int count = 0;
-			int bright = 0;
 
 			for (int py = 0; py < h; py++) {
 				for (int px = 0; px < w; px++) {
 					int argb = image.getPixel(px, py);
-					int pixel = ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
-					sum += pixel;
+					sum += ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
 					count += 3;
-
-					if (pixel > 300) {
-						bright++;
-					}
 				}
 			}
 
 			double brightness = (double) sum / count;
-			lastBrightShare = bright / (double) (w * h);
-			VisualModClient.LOGGER.info("[gametest] {}: brightness {}, bright pixels {}%", name,
-					"%.2f".formatted(brightness), "%.2f".formatted(lastBrightShare * 100));
+			VisualModClient.LOGGER.info("[gametest] {}: brightness {}", name, "%.2f".formatted(brightness));
 			return brightness;
 		} catch (IOException e) {
 			throw new RuntimeException(e);

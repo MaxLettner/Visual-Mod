@@ -20,16 +20,6 @@ import net.fabricmc.loader.api.FabricLoader;
  */
 public final class VisualConfig {
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("visualmod.properties");
-	/** Version 2: ore glow changed from "whole block, torch-like" to "ore pixels at full brightness". */
-	private static final int CONFIG_VERSION = 2;
-
-	// --- Glowing ores ---
-	/** Render the ore pixels of ore blocks at full brightness, whatever the real light level is. */
-	public static boolean oreGlow = true;
-	/** Light level (1-15) the ore pixels are always rendered at; 0 turns ore glow off. */
-	public static int oreGlowLevel = 15;
-	/** Per-block overrides, keyed by block id (e.g. {@code minecraft:coal_ore}); 0 turns glow off for that block. */
-	public static final Map<String, Integer> oreGlowOverrides = new HashMap<>();
 
 	// --- Dynamic lights ---
 	/** Light up the area around entities that hold or are light sources (torches, lanterns, ...). */
@@ -55,8 +45,6 @@ public final class VisualConfig {
 	}
 
 	private static void defaults() {
-		oreGlowOverrides.clear();
-
 		itemLightOverrides.clear();
 		itemLightOverrides.put("minecraft:lava_bucket", 15);
 		itemLightOverrides.put("minecraft:nether_star", 14);
@@ -83,14 +71,6 @@ public final class VisualConfig {
 			}
 		}
 
-		// Ore levels from version 1 configs meant something else (whole-block minimum light), so drop them.
-		boolean oldOreSettings = integer(props, "configVersion", 1) < CONFIG_VERSION;
-
-		oreGlow = bool(props, "oreGlow", oreGlow);
-
-		if (!oldOreSettings) {
-			oreGlowLevel = clamp(integer(props, "oreGlowLevel", oreGlowLevel), 0, 15);
-		}
 		dynamicLights = bool(props, "dynamicLights", dynamicLights);
 		heldItemLights = bool(props, "heldItemLights", heldItemLights);
 		mobItemLights = bool(props, "mobItemLights", mobItemLights);
@@ -101,9 +81,7 @@ public final class VisualConfig {
 		maxSources = clamp(integer(props, "maxSources", maxSources), 1, 128);
 
 		for (String key : props.stringPropertyNames()) {
-			if (key.startsWith("ore.") && !oldOreSettings) {
-				oreGlowOverrides.put(key.substring(4), clamp(integer(props, key, 0), 0, 15));
-			} else if (key.startsWith("item.")) {
+			if (key.startsWith("item.")) {
 				itemLightOverrides.put(key.substring(5), clamp(integer(props, key, 0), 0, 15));
 			}
 		}
@@ -113,20 +91,8 @@ public final class VisualConfig {
 
 	private static void save() {
 		StringBuilder out = new StringBuilder();
-		out.append("# Visual Mod config. Changes apply after restarting the game\n");
-		out.append("# (ore settings also apply after a resource reload with F3+T).\n");
-		line(out, "configVersion", CONFIG_VERSION);
-		out.append("\n");
-		out.append("# Glowing ores: the ore pixels (not the rock around them) always render at this light level,\n");
-		out.append("# no matter how dark it really is. They do not light up their surroundings.\n");
-		line(out, "oreGlow", oreGlow);
-		out.append("# Light level (1-15) for the ore pixels. 15 = fully bright.\n");
-		line(out, "oreGlowLevel", oreGlowLevel);
-		out.append("# Per-ore levels: ore.<block id>=<0-15>, e.g. ore.minecraft\\:coal_ore=0 turns glow off for coal ore.\n");
-		oreGlowOverrides.entrySet().stream().sorted(Map.Entry.comparingByKey())
-				.forEach(e -> line(out, "ore." + e.getKey(), e.getValue()));
-
-		out.append("\n# Dynamic lights: held/dropped light sources light up their surroundings.\n");
+		out.append("# Visual Mod config. Changes apply after restarting the game.\n\n");
+		out.append("# Dynamic lights: held/dropped light sources light up their surroundings.\n");
 		line(out, "dynamicLights", dynamicLights);
 		line(out, "heldItemLights", heldItemLights);
 		line(out, "mobItemLights", mobItemLights);
