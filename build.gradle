@@ -16,6 +16,16 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
+fabricApi {
+	// In-game client tests: ./gradlew runClientGameTest (see src/gametest).
+	configureTests {
+		createSourceSet = true
+		modId = "visualmod-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+	}
+}
+
 processResources {
 	def version = project.version
 	inputs.property "version", version

@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "visualmod-gametest",
+	"version": "1.0.0",
+	"name": "Visual Mod Game Tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"com.maxlettner.visualmod.gametest.VisualModClientGameTest"
+		]
+	},
+	"depends": {
+		"visualmod": "*"
+	}
+}
