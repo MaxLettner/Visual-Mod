@@ -5,7 +5,9 @@
 	"client": [
 		"BrightnessGetterMixin",
 		"ClientLevelMixin",
-		"EntityRendererMixin"
+		"EntityRendererMixin",
+		"IndigoBlockRendererMixin",
+		"LevelChunkMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

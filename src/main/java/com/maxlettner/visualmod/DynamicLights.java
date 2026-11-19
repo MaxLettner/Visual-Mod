@@ -47,8 +47,9 @@ public final class DynamicLights {
 	 */
 	public static final float RADIUS = 7.5f;
 	private static final float RADIUS_SQ = RADIUS * RADIUS;
-	/** Stride of one source in {@link #snapshot}: x, y, z, luminance. */
-	private static final int STRIDE = 4;
+	/** Stride of one source in {@link #snapshot}: x, y, z, luminance, r, g, b. */
+	private static final int STRIDE = 7;
+	public static final int COLOR_STRIDE = STRIDE;
 
 	/** Immutable snapshot read by the render and chunk-builder threads. */
 	private static volatile float[] snapshot = new float[0];
@@ -77,7 +78,7 @@ public final class DynamicLights {
 	private DynamicLights() {
 	}
 
-	private record Candidate(int id, float x, float y, float z, int blockX, int blockY, int blockZ, int luminance, double distSq) {
+	private record Candidate(int id, float x, float y, float z, int blockX, int blockY, int blockZ, int luminance, int color, double distSq) {
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -98,24 +99,34 @@ public final class DynamicLights {
 		float best = 0f;
 
 		for (int i = 0; i < s.length; i += STRIDE) {
-			float dx = s[i] - x;
-			float dy = s[i + 1] - y;
-			float dz = s[i + 2] - z;
-			float distSq = dx * dx + dy * dy + dz * dz;
+			float light = falloff(s[i + 3], s[i] - x, s[i + 1] - y, s[i + 2] - z);
 
-			if (distSq < RADIUS_SQ) {
-				// Vanilla-like falloff (-1 per block), faded out over the last 2 blocks of the radius
-				// so there is no hard edge where re-meshing stops.
-				float dist = (float) Math.sqrt(distSq);
-				float light = (s[i + 3] - dist) * Math.min(1f, (RADIUS - dist) * 0.5f);
-
-				if (light > best) {
-					best = light;
-				}
+			if (light > best) {
+				best = light;
 			}
 		}
 
 		return best;
+	}
+
+	/**
+	 * Light from a source of the given luminance at offset (dx, dy, dz): vanilla-like falloff (-1 per block),
+	 * faded out over the last 2 blocks of the radius so there is no hard edge where re-meshing stops.
+	 */
+	public static float falloff(float luminance, float dx, float dy, float dz) {
+		float distSq = dx * dx + dy * dy + dz * dz;
+
+		if (distSq >= RADIUS_SQ) {
+			return 0f;
+		}
+
+		float dist = (float) Math.sqrt(distSq);
+		return (luminance - dist) * Math.min(1f, (RADIUS - dist) * 0.5f);
+	}
+
+	/** Snapshot of all moving sources with colour, {@link #COLOR_STRIDE} floats each: x, y, z, luminance, r, g, b. */
+	public static float[] coloredSnapshot() {
+		return snapshot;
 	}
 
 	public static boolean hasSources() {
@@ -189,6 +200,7 @@ public final class DynamicLights {
 		}
 
 		int luminance = 0;
+		int color = ColoredLights.WHITE;
 
 		if (VisualConfig.burningEntityLights && entity.isOnFire()) {
 			luminance = 14;
@@ -201,12 +213,23 @@ public final class DynamicLights {
 				boolean underwater = VisualConfig.waterSensitive && entity.isUnderWater();
 
 				for (EquipmentSlot slot : EquipmentSlot.VALUES) {
-					luminance = Math.max(luminance, itemLight(living.getItemBySlot(slot), underwater));
+					ItemStack stack = living.getItemBySlot(slot);
+					int light = itemLight(stack, underwater);
+
+					if (light > luminance) {
+						luminance = light;
+						color = ColoredLights.colorOf(stack.getItem());
+					}
 				}
 			}
 		} else if (entity instanceof ItemEntity item && VisualConfig.droppedItemLights) {
 			boolean underwater = VisualConfig.waterSensitive && entity.isUnderWater();
-			luminance = Math.max(luminance, itemLight(item.getItem(), underwater));
+			int light = itemLight(item.getItem(), underwater);
+
+			if (light > luminance) {
+				luminance = light;
+				color = ColoredLights.colorOf(item.getItem().getItem());
+			}
 		}
 
 		if (luminance <= 0) {
@@ -214,7 +237,7 @@ public final class DynamicLights {
 		}
 
 		pending.add(new Candidate(entity.getId(), (float) x, (float) y, (float) z,
-				Mth.floor(x), Mth.floor(y), Mth.floor(z), luminance, distSq));
+				Mth.floor(x), Mth.floor(y), Mth.floor(z), luminance, color, distSq));
 	}
 
 	public static void endTick() {
@@ -236,7 +259,7 @@ public final class DynamicLights {
 			Candidate before = active.get(now.id());
 
 			if (before != null && before.blockX() == now.blockX() && before.blockY() == now.blockY()
-					&& before.blockZ() == now.blockZ() && before.luminance() == now.luminance()) {
+					&& before.blockZ() == now.blockZ() && before.luminance() == now.luminance() && before.color() == now.color()) {
 				// Same block, same brightness: keep the old position so the mesh stays valid.
 				next.put(now.id(), before);
 				continue;
@@ -270,6 +293,9 @@ public final class DynamicLights {
 				s[i++] = c.y();
 				s[i++] = c.z();
 				s[i++] = c.luminance();
+				s[i++] = ((c.color() >> 16) & 0xFF) / 255f;
+				s[i++] = ((c.color() >> 8) & 0xFF) / 255f;
+				s[i++] = (c.color() & 0xFF) / 255f;
 			}
 
 			// Publish first, then schedule rebuilds, so the rebuilt meshes see the new lights.

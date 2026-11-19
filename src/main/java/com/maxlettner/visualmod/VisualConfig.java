@@ -38,6 +38,10 @@ public final class VisualConfig {
 	public static int maxDistance = 48;
 	/** Upper bound on the number of simultaneous dynamic light sources (closest ones win). */
 	public static int maxSources = 24;
+	/** Give torch families coloured light: torch warm orange, soul cyan-blue, redstone red, copper green. */
+	public static boolean coloredLights = true;
+	/** How strongly coloured light tints blocks, 0-1 (stored as percent in the file). */
+	public static float coloredLightStrength = 0.8f;
 	/** Extra item light levels, keyed by item id. Block items use their block's light level automatically. */
 	public static final Map<String, Integer> itemLightOverrides = new HashMap<>();
 
@@ -79,6 +83,8 @@ public final class VisualConfig {
 		waterSensitive = bool(props, "waterSensitive", waterSensitive);
 		maxDistance = clamp(integer(props, "maxDistance", maxDistance), 8, 256);
 		maxSources = clamp(integer(props, "maxSources", maxSources), 1, 128);
+		coloredLights = bool(props, "coloredLights", coloredLights);
+		coloredLightStrength = clamp(integer(props, "coloredLightStrength", Math.round(coloredLightStrength * 100)), 0, 100) / 100f;
 
 		for (String key : props.stringPropertyNames()) {
 			if (key.startsWith("item.")) {
@@ -103,6 +109,10 @@ public final class VisualConfig {
 		line(out, "maxDistance", maxDistance);
 		out.append("# Max simultaneous dynamic light sources; the closest ones are kept.\n");
 		line(out, "maxSources", maxSources);
+		out.append("\n# Coloured light for torch families (torch orange, soul blue, redstone red, copper green).\n");
+		line(out, "coloredLights", coloredLights);
+		out.append("# Tint strength in percent (0-100).\n");
+		line(out, "coloredLightStrength", Math.round(coloredLightStrength * 100));
 		out.append("# Extra light levels for non-block items: item.<item id>=<0-15>.\n");
 		itemLightOverrides.entrySet().stream().sorted(Map.Entry.comparingByKey())
 				.forEach(e -> line(out, "item." + e.getKey(), e.getValue()));

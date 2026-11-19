@@ -1,6 +1,6 @@
 # Visual Mod
 
-A small, **client-side only** Fabric mod for Minecraft **26.3** that adds dynamic lights without costing performance.
+A small, **client-side only** Fabric mod for Minecraft **26.3** that adds dynamic lights and colored torch light without costing performance.
 It works on any server (vanilla, Paper, other modded servers), because nothing is sent to or needed on the server.
 
 ![In-game test screenshots: dark room, held torch, torch put away, armor stand with lantern, dropped glowstone](docs/screenshots.png)
@@ -27,6 +27,24 @@ Mobs and items near a light source are lit by it too.
 - That re-meshing runs on vanilla's background chunk-builder threads.
 - With no light sources nearby, the hook costs a single field read.
 
+### Colored light
+Torch families light their surroundings in their own color, whether placed or held:
+
+| Light source | Color |
+| --- | --- |
+| Torch, lantern, campfire | warm orange |
+| Soul torch, soul lantern, soul campfire | blue |
+| Redstone torch | red |
+| Copper torch, copper lanterns (all oxidation stages) | green |
+
+Brightness stays exactly vanilla's; only the hue changes. The tint is strongest in caves and weaker where there's sky light. Mobs and players aren't tinted.
+
+![Placed torch, soul torch, redstone torch, copper torch, and a held soul torch](docs/colored-lights.png)
+
+*Performance:*
+- The tint is applied while chunk meshes are built, so it costs nothing per frame.
+- Placed torches are tracked in a small per-chunk-section index. On chunk load, sections without any torch are skipped with a palette check.
+
 ## Configuration
 
 `config/visualmod.properties` is created the first time you launch the game. All features can be turned off and tuned:
@@ -41,6 +59,8 @@ Mobs and items near a light source are lit by it too.
 | `waterSensitive` | `true` | Torches etc. go out underwater |
 | `maxDistance` | `48` | Max distance (blocks) from the camera for light sources |
 | `maxSources` | `24` | Max simultaneous light sources |
+| `coloredLights` | `true` | Enable colored light |
+| `coloredLightStrength` | `80` | Tint strength in percent (0–100) |
 | `item.<item id>` | see file | Light level for non-block items, e.g. `item.minecraft\:blaze_rod=10` |
 
 In `.properties` files, the `:` in ids must be written as `\:`. The generated file already does this.
@@ -68,7 +88,7 @@ Every push also builds the jar on GitHub Actions (see `.github/workflows/build.y
 
 This starts the real game, builds a sealed dark room, and checks every light source:
 it takes screenshots and compares their brightness.
-The checks are: the room is dark with nothing held, holding a torch, putting it away, an armor stand holding a lantern, and dropped glowstone.
+The checks are: the room is dark with nothing held, holding a torch, putting it away, an armor stand holding a lantern, dropped glowstone, the color of each placed torch type, and a held soul torch.
 It also forces every mixin to apply, so a broken mixin target fails the test.
 Screenshots are saved to `build/run/clientGameTest/screenshots/`.
 
@@ -80,5 +100,6 @@ LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 xvfb-run -a -s "-screen 0 1920x108
 
 ## Compatibility notes
 
-- Tested with Fabric's default renderer (Indigo). Sodium hasn't been tested yet.
+- Tested with Fabric's default renderer (Indigo). Colored light hooks into Indigo, so it won't show with Sodium; dynamic lights with Sodium haven't been tested.
+- Colored light can bleed slightly through thin walls, and water isn't tinted.
 - Don't use it together with another dynamic-lights mod (LambDynamicLights, Ryoamic Lights, …). Pick one, or set `dynamicLights=false` here.

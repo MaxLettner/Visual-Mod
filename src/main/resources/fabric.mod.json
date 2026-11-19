@@ -3,7 +3,7 @@
 	"id": "visualmod",
 	"version": "${version}",
 	"name": "Visual Mod",
-	"description": "Lightweight client-side dynamic lights: held, worn and dropped light sources light up their surroundings.",
+	"description": "Lightweight client-side dynamic lights and colored torch light (soul blue, redstone red, copper green).",
 	"authors": [
 		"Max Lettner"
 	],
