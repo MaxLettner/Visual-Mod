@@ -8,11 +8,16 @@ It works on any server (vanilla, Paper, other modded servers), because nothing i
 ## Features
 
 ### Glowing ores
-Ores render with a minimum brightness, so they stay faintly visible in dark caves.
-Valuable ores glow a bit more: diamond and emerald 9, ancient debris 8, gold and lapis 7, most others 6, coal 4.
-Modded ores glow too: any block whose id ends in `_ore` counts.
+The ore pixels of every ore block always render at full brightness, as if they were at light level 15, no matter how dark it really is.
+The rock around them is lit normally, and the ores don't light up their surroundings.
+So in a pitch-black cave you see bright specks of diamond, gold, iron and so on, and nothing else.
 
-*Performance:* the brightness is baked into the chunk mesh once, when the chunk is built, so it costs nothing per frame.
+This works for all vanilla ores (stone, deepslate and nether variants), for modded ores (any texture ending in `_ore`), and with resource packs:
+- **How it finds the ore pixels:** when textures load, each ore texture is compared with the rock it is drawn on (stone, deepslate, netherrack or end stone). Every color that also appears in the rock is removed, which leaves only the ore.
+- **Resource packs:** they work automatically. A texture that doesn't look like rock with ore in it is simply left alone.
+- **Coal:** coal is black and grey, so it shows up as visible dark specks rather than glowing.
+
+*Performance:* the ore-only textures are created once while resources load. The bright pixels are an extra layer baked into the chunk mesh, so there's no per-frame cost.
 
 ### Dynamic lights
 Light sources light up their surroundings while they move:
@@ -41,8 +46,8 @@ Mobs and items near a light source are lit by it too.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `oreGlow` | `true` | Enable glowing ores |
-| `oreGlowLevel` | `6` | Default glow level (0–15) for blocks ending in `_ore` |
-| `ore.<block id>` | see file | Per-ore glow level, e.g. `ore.minecraft\:diamond_ore=9` (`0` turns it off) |
+| `oreGlowLevel` | `15` | Light level (1–15) the ore pixels always render at |
+| `ore.<block id>` | – | Per-ore level, e.g. `ore.minecraft\:coal_ore=0` turns coal glow off |
 | `dynamicLights` | `true` | Enable dynamic lights |
 | `heldItemLights` | `true` | Items held by players |
 | `mobItemLights` | `true` | Items held or worn by mobs and armor stands |
@@ -55,6 +60,7 @@ Mobs and items near a light source are lit by it too.
 
 In `.properties` files, the `:` in ids must be written as `\:`. The generated file already does this.
 Restart the game after changing settings. Ore changes also apply after a resource reload (F3+T).
+Updating from 1.0.0 resets the ore settings once, because their meaning changed.
 
 ## Installing
 
@@ -78,7 +84,7 @@ Every push also builds the jar on GitHub Actions (see `.github/workflows/build.y
 
 This starts the real game, builds a sealed dark room with ores, and checks every feature:
 it takes screenshots and compares their brightness.
-The checks are: ore glow on vs off, holding a torch, putting it away, an armor stand holding a lantern, and dropped glowstone.
+The checks are: ore pixels bright while the rock stays dark, ore glow off, holding a torch, putting it away, an armor stand holding a lantern, and dropped glowstone.
 It also forces every mixin to apply, so a broken mixin target fails the test.
 Screenshots are saved to `build/run/clientGameTest/screenshots/`.
 
@@ -91,4 +97,5 @@ LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 xvfb-run -a -s "-screen 0 1920x108
 ## Compatibility notes
 
 - Built for Fabric's default renderer (Indigo). Sodium implements the same Fabric rendering API, so ore glow should work there too, but this hasn't been tested yet.
+- Animated ore textures from resource packs are skipped by ore glow (those ores just look vanilla).
 - Don't use it together with another dynamic-lights mod (LambDynamicLights, Ryoamic Lights, …). Pick one, or set `dynamicLights=false` here.

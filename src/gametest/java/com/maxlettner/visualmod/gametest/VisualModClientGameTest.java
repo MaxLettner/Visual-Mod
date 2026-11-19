@@ -62,6 +62,9 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			settle(context, singleplayer);
 
 			double dark = shot(context, "1_dark_room_empty_hand");
+			double brightOn = lastBrightShare;
+			check(brightOn > 0.01, "ore pixels render bright in a pitch-dark room (%.1f%% of the screen)".formatted(brightOn * 100));
+			check(dark < 40, "the rock around the ores stays dark (mean brightness %.1f)".formatted(dark));
 			check(!context.computeOnClient(client -> DynamicLights.hasSources()), "no light sources with an empty hand");
 
 			// Held torch must light up the room.
@@ -101,6 +104,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			context.waitFor(client -> reload.isDone() && client.gui.overlay() == null, 20 * 60 * 5);
 			settle(context, singleplayer);
 			double noGlow = shot(context, "6_ore_glow_off");
+			check(lastBrightShare < brightOn / 10, "without ore glow almost nothing is bright (%.2f%% vs %.1f%%)".formatted(lastBrightShare * 100, brightOn * 100));
 			check(dark > noGlow + 0.5, "ores are brighter with ore glow on (%.2f on vs %.2f off)".formatted(dark, noGlow));
 			VisualConfig.oreGlow = true;
 		}
@@ -118,7 +122,13 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 		context.waitTicks(5);
 	}
 
-	/** Takes a screenshot and returns the mean brightness (0-255) of the whole screen. */
+	/** Share (0-1) of pixels brighter than 100/255 in the last screenshot. */
+	private static double lastBrightShare;
+
+	/**
+	 * Takes a screenshot and returns the mean brightness (0-255) of the whole screen.
+	 * Also stores the share of bright pixels in {@link #lastBrightShare}.
+	 */
 	private static double shot(ClientGameTestContext context, String name) {
 		Path path = context.takeScreenshot(name);
 
@@ -126,17 +136,25 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			int w = image.getWidth(), h = image.getHeight();
 			long sum = 0;
 			int count = 0;
+			int bright = 0;
 
 			for (int py = 0; py < h; py++) {
 				for (int px = 0; px < w; px++) {
 					int argb = image.getPixel(px, py);
-					sum += ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
+					int pixel = ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
+					sum += pixel;
 					count += 3;
+
+					if (pixel > 300) {
+						bright++;
+					}
 				}
 			}
 
 			double brightness = (double) sum / count;
-			VisualModClient.LOGGER.info("[gametest] {}: brightness {}", name, "%.2f".formatted(brightness));
+			lastBrightShare = bright / (double) (w * h);
+			VisualModClient.LOGGER.info("[gametest] {}: brightness {}, bright pixels {}%", name,
+					"%.2f".formatted(brightness), "%.2f".formatted(lastBrightShare * 100));
 			return brightness;
 		} catch (IOException e) {
 			throw new RuntimeException(e);

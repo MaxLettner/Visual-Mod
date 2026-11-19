@@ -20,13 +20,15 @@ import net.fabricmc.loader.api.FabricLoader;
  */
 public final class VisualConfig {
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("visualmod.properties");
+	/** Version 2: ore glow changed from "whole block, torch-like" to "ore pixels at full brightness". */
+	private static final int CONFIG_VERSION = 2;
 
 	// --- Glowing ores ---
-	/** Make ore blocks render with a minimum brightness so they stand out in the dark. */
+	/** Render the ore pixels of ore blocks at full brightness, whatever the real light level is. */
 	public static boolean oreGlow = true;
-	/** Minimum block-light level (0-15) used for ores that have no specific entry below. */
-	public static int oreGlowLevel = 6;
-	/** Per-block overrides, keyed by block id (e.g. {@code minecraft:diamond_ore}). */
+	/** Light level (1-15) the ore pixels are always rendered at; 0 turns ore glow off. */
+	public static int oreGlowLevel = 15;
+	/** Per-block overrides, keyed by block id (e.g. {@code minecraft:coal_ore}); 0 turns glow off for that block. */
 	public static final Map<String, Integer> oreGlowOverrides = new HashMap<>();
 
 	// --- Dynamic lights ---
@@ -54,18 +56,6 @@ public final class VisualConfig {
 
 	private static void defaults() {
 		oreGlowOverrides.clear();
-		oreGlowOverrides.put("minecraft:diamond_ore", 9);
-		oreGlowOverrides.put("minecraft:deepslate_diamond_ore", 9);
-		oreGlowOverrides.put("minecraft:emerald_ore", 9);
-		oreGlowOverrides.put("minecraft:deepslate_emerald_ore", 9);
-		oreGlowOverrides.put("minecraft:ancient_debris", 8);
-		oreGlowOverrides.put("minecraft:gold_ore", 7);
-		oreGlowOverrides.put("minecraft:deepslate_gold_ore", 7);
-		oreGlowOverrides.put("minecraft:nether_gold_ore", 5);
-		oreGlowOverrides.put("minecraft:lapis_ore", 7);
-		oreGlowOverrides.put("minecraft:deepslate_lapis_ore", 7);
-		oreGlowOverrides.put("minecraft:coal_ore", 4);
-		oreGlowOverrides.put("minecraft:deepslate_coal_ore", 4);
 
 		itemLightOverrides.clear();
 		itemLightOverrides.put("minecraft:lava_bucket", 15);
@@ -93,8 +83,14 @@ public final class VisualConfig {
 			}
 		}
 
+		// Ore levels from version 1 configs meant something else (whole-block minimum light), so drop them.
+		boolean oldOreSettings = integer(props, "configVersion", 1) < CONFIG_VERSION;
+
 		oreGlow = bool(props, "oreGlow", oreGlow);
-		oreGlowLevel = clamp(integer(props, "oreGlowLevel", oreGlowLevel), 0, 15);
+
+		if (!oldOreSettings) {
+			oreGlowLevel = clamp(integer(props, "oreGlowLevel", oreGlowLevel), 0, 15);
+		}
 		dynamicLights = bool(props, "dynamicLights", dynamicLights);
 		heldItemLights = bool(props, "heldItemLights", heldItemLights);
 		mobItemLights = bool(props, "mobItemLights", mobItemLights);
@@ -105,7 +101,7 @@ public final class VisualConfig {
 		maxSources = clamp(integer(props, "maxSources", maxSources), 1, 128);
 
 		for (String key : props.stringPropertyNames()) {
-			if (key.startsWith("ore.")) {
+			if (key.startsWith("ore.") && !oldOreSettings) {
 				oreGlowOverrides.put(key.substring(4), clamp(integer(props, key, 0), 0, 15));
 			} else if (key.startsWith("item.")) {
 				itemLightOverrides.put(key.substring(5), clamp(integer(props, key, 0), 0, 15));
@@ -118,12 +114,15 @@ public final class VisualConfig {
 	private static void save() {
 		StringBuilder out = new StringBuilder();
 		out.append("# Visual Mod config. Changes apply after restarting the game\n");
-		out.append("# (ore settings also apply after a resource reload with F3+T).\n\n");
-		out.append("# Glowing ores: ores render with a minimum brightness so they are visible in the dark.\n");
+		out.append("# (ore settings also apply after a resource reload with F3+T).\n");
+		line(out, "configVersion", CONFIG_VERSION);
+		out.append("\n");
+		out.append("# Glowing ores: the ore pixels (not the rock around them) always render at this light level,\n");
+		out.append("# no matter how dark it really is. They do not light up their surroundings.\n");
 		line(out, "oreGlow", oreGlow);
-		out.append("# Default minimum light level (0-15) for any block whose id ends in \"_ore\".\n");
+		out.append("# Light level (1-15) for the ore pixels. 15 = fully bright.\n");
 		line(out, "oreGlowLevel", oreGlowLevel);
-		out.append("# Per-ore levels: ore.<block id>=<0-15>. Set to 0 to disable glow for that ore.\n");
+		out.append("# Per-ore levels: ore.<block id>=<0-15>, e.g. ore.minecraft\\:coal_ore=0 turns glow off for coal ore.\n");
 		oreGlowOverrides.entrySet().stream().sorted(Map.Entry.comparingByKey())
 				.forEach(e -> line(out, "ore." + e.getKey(), e.getValue()));
 
