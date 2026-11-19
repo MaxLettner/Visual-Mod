@@ -69,7 +69,7 @@ Restart the game after changing settings. Ore settings left over from older vers
 ## Installing
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.3 (Java 25 is required).
-2. Put [Fabric API](https://modrinth.com/mod/fabric-api), [Sodium](https://modrinth.com/mod/sodium) (0.9.3-beta.5 or newer for 26.3) and `visual-mod-<version>.jar` into your `mods` folder. Sodium is required.
+2. Put [Fabric API](https://modrinth.com/mod/fabric-api), [Sodium](https://modrinth.com/mod/sodium) (0.9.2 or newer for 26.3; the 0.9.3 betas work too) and `visual-mod-<version>.jar` into your `mods` folder. Sodium is required.
 
 ## Building
 

@@ -14,6 +14,7 @@ import net.caffeinemc.mods.sodium.client.render.chunk.compile.pipeline.BlockRend
 import net.caffeinemc.mods.sodium.client.render.model.MutableQuadViewImpl;
 
 import com.maxlettner.visualmod.ColoredLights;
+import com.maxlettner.visualmod.compat.SodiumQuads;
 
 /**
  * Sodium's chunk mesher: tints each terrain quad after Sodium has tinted and shaded it,
@@ -38,12 +39,12 @@ public abstract class SodiumBlockRendererMixin {
 			return;
 		}
 
-		ColoredLights.Tinter tinter = ColoredLights.begin(this.visualmod$pos, quad.sodium$getLightFace());
+		ColoredLights.Tinter tinter = ColoredLights.begin(this.visualmod$pos, SodiumQuads.lightFace(quad));
 
 		if (tinter != null) {
 			for (int i = 0; i < 4; i++) {
-				quad.setColor(i, ColoredLights.tint(tinter, quad.baseColor(i), quad.sodium$getLight(i),
-						quad.sodium$getX(i), quad.sodium$getY(i), quad.sodium$getZ(i)));
+				quad.setColor(i, ColoredLights.tint(tinter, quad.baseColor(i), SodiumQuads.light(quad, i),
+						SodiumQuads.x(quad, i), SodiumQuads.y(quad, i), SodiumQuads.z(quad, i)));
 			}
 		}
 	}
