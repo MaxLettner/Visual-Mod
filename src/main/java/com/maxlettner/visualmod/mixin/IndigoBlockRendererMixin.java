@@ -27,6 +27,12 @@ public abstract class IndigoBlockRendererMixin {
 			at = @At(value = "INVOKE", target = "Lnet/fabricmc/fabric/impl/client/indigo/renderer/render/AltModelBlockRendererImpl;tintQuad(Lnet/fabricmc/fabric/api/client/renderer/v1/mesh/MutableQuadView;)V", shift = At.Shift.AFTER)
 	)
 	private void visualmod$colorLight(MutableQuadView quad, CallbackInfoReturnable<Boolean> cir) {
-		ColoredLights.tintQuad(quad, pos);
+		ColoredLights.Tinter tinter = ColoredLights.begin(pos, quad.lightFace());
+
+		if (tinter != null) {
+			for (int i = 0; i < 4; i++) {
+				quad.color(i, ColoredLights.tint(tinter, quad.color(i), quad.lightmap(i), quad.x(i), quad.y(i), quad.z(i)));
+			}
+		}
 	}
 }

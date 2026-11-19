@@ -69,7 +69,7 @@ Restart the game after changing settings. Ore settings left over from older vers
 ## Installing
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.3 (Java 25 is required).
-2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and `visual-mod-<version>.jar` into your `mods` folder.
+2. Put [Fabric API](https://modrinth.com/mod/fabric-api), [Sodium](https://modrinth.com/mod/sodium) (0.9.3-beta.5 or newer for 26.3) and `visual-mod-<version>.jar` into your `mods` folder. Sodium is required.
 
 ## Building
 
@@ -100,6 +100,6 @@ LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 xvfb-run -a -s "-screen 0 1920x108
 
 ## Compatibility notes
 
-- Tested with Fabric's default renderer (Indigo). Colored light hooks into Indigo, so it won't show with Sodium; dynamic lights with Sodium haven't been tested.
+- Requires Sodium; dynamic and colored light are tested with it. Colored light hooks into Sodium's chunk mesher (and Fabric's Indigo renderer, used when Sodium isn't present).
 - Colored light can bleed slightly through thin walls, and water isn't tinted.
 - Don't use it together with another dynamic-lights mod (LambDynamicLights, Ryoamic Lights, …). Pick one, or set `dynamicLights=false` here.

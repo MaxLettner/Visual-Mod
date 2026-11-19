@@ -19,7 +19,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 
-import net.fabricmc.fabric.api.client.renderer.v1.mesh.MutableQuadView;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Coloured light for the torch families (torch, lantern, campfire and their soul, copper and redstone variants).
@@ -52,7 +52,7 @@ public final class ColoredLights {
 	private static volatile Level indexedLevel;
 
 	private static final Source[] NONE = new Source[0];
-	private static final ThreadLocal<CandidateCache> CACHE = ThreadLocal.withInitial(CandidateCache::new);
+	private static final ThreadLocal<Tinter> CACHE = ThreadLocal.withInitial(Tinter::new);
 
 	private ColoredLights() {
 	}
@@ -60,10 +60,13 @@ public final class ColoredLights {
 	private record Source(int blockX, int blockY, int blockZ, int level, float r, float g, float b) {
 	}
 
-	private static final class CandidateCache {
-		long section = Long.MIN_VALUE;
-		int version = -1;
-		Source[] sources = NONE;
+	/** Per-thread state: cached candidate sources for the section being built, plus the current quad's sample offset. */
+	public static final class Tinter {
+		private long section = Long.MIN_VALUE;
+		private int version = -1;
+		private Source[] sources = NONE;
+		private float[] moving;
+		private float offX, offY, offZ;
 	}
 
 	// ------------------------------------------------------------------------------------------
@@ -229,8 +232,7 @@ public final class ColoredLights {
 	// ------------------------------------------------------------------------------------------
 
 	/** Placed sources whose light can reach the given section; cached per thread, since a worker builds one section at a time. */
-	private static Source[] candidates(int sx, int sy, int sz) {
-		CandidateCache cache = CACHE.get();
+	private static Source[] candidates(Tinter cache, int sx, int sy, int sz) {
 		long key = SectionPos.asLong(sx, sy, sz);
 		int version = VERSION.get();
 
@@ -282,89 +284,93 @@ public final class ColoredLights {
 		return result;
 	}
 
-	/** Tints a shaded terrain quad (block-local vertex positions) at block {@code pos}. */
-	public static void tintQuad(MutableQuadView quad, BlockPos pos) {
+	/**
+	 * Prepares tinting of one quad of the block at {@code pos} whose light comes from {@code face}.
+	 * Returns {@code null} when nothing nearby has coloured light (the common case), otherwise a
+	 * per-thread context for {@link #tint}. Renderer-neutral: used by the Indigo and Sodium hooks.
+	 */
+	public static @Nullable Tinter begin(BlockPos pos, @Nullable Direction face) {
 		if (!VisualConfig.coloredLights) {
-			return;
+			return null;
 		}
 
-		Source[] placed = candidates(pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
+		Tinter t = CACHE.get();
+		Source[] placed = candidates(t, pos.getX() >> 4, pos.getY() >> 4, pos.getZ() >> 4);
 		float[] moving = DynamicLights.coloredSnapshot();
 
 		if (placed.length == 0 && moving.length == 0) {
-			return;
+			return null;
 		}
 
 		// Sample half a block in front of the face, where the light that hits it comes from.
-		Direction face = quad.lightFace();
-		float offX = pos.getX() + face.getStepX() * 0.5f;
-		float offY = pos.getY() + face.getStepY() * 0.5f;
-		float offZ = pos.getZ() + face.getStepZ() * 0.5f;
+		t.moving = moving;
+		t.offX = pos.getX() + (face == null ? 0 : face.getStepX() * 0.5f);
+		t.offY = pos.getY() + (face == null ? 0 : face.getStepY() * 0.5f);
+		t.offZ = pos.getZ() + (face == null ? 0 : face.getStepZ() * 0.5f);
+		return t;
+	}
 
-		for (int i = 0; i < 4; i++) {
-			float px = offX + quad.x(i);
-			float py = offY + quad.y(i);
-			float pz = offZ + quad.z(i);
-			float sumW = 0, r = 0, g = 0, b = 0;
-			boolean coloured = false;
+	/** Returns the ARGB vertex colour tinted for the coloured light at block-local position (x, y, z). */
+	public static int tint(Tinter t, int argb, int light, float x, float y, float z) {
+		float px = t.offX + x;
+		float py = t.offY + y;
+		float pz = t.offZ + z;
+		float sumW = 0, r = 0, g = 0, b = 0;
+		boolean coloured = false;
 
-			for (Source s : placed) {
-				float dx = s.blockX() + 0.5f - px, dy = s.blockY() + 0.5f - py, dz = s.blockZ() + 0.5f - pz;
-				float w = s.level() - (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+		for (Source s : t.sources) {
+			float dx = s.blockX() + 0.5f - px, dy = s.blockY() + 0.5f - py, dz = s.blockZ() + 0.5f - pz;
+			float w = s.level() - (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-				if (w > 0) {
-					sumW += w;
-					r += s.r() * w;
-					g += s.g() * w;
-					b += s.b() * w;
-					coloured = true;
-				}
+			if (w > 0) {
+				sumW += w;
+				r += s.r() * w;
+				g += s.g() * w;
+				b += s.b() * w;
+				coloured = true;
 			}
-
-			for (int j = 0; j < moving.length; j += DynamicLights.COLOR_STRIDE) {
-				float w = DynamicLights.falloff(moving[j + 3], moving[j] - px, moving[j + 1] - py, moving[j + 2] - pz);
-
-				if (w > 0) {
-					sumW += w;
-					r += moving[j + 4] * w;
-					g += moving[j + 5] * w;
-					b += moving[j + 6] * w;
-					coloured |= moving[j + 4] != 1f || moving[j + 5] != 1f || moving[j + 6] != 1f;
-				}
-			}
-
-			if (!coloured || sumW <= 0) {
-				continue;
-			}
-
-			// Average colour, normalised so the brightest channel is 1 (tinting shifts hue, brightness stays vanilla's).
-			r /= sumW;
-			g /= sumW;
-			b /= sumW;
-			float max = Math.max(r, Math.max(g, b));
-			r /= max;
-			g /= max;
-			b /= max;
-
-			// Full tint once block light reaches 8; faded where sky light is present (outdoors).
-			int light = quad.lightmap(i);
-			float block = Math.min(1f, (light & 0xFFFFF) / 16f / 8f);
-			float sky = ((light >>> 20) & 0xF) / 15f;
-			float strength = VisualConfig.coloredLightStrength * block * (1f - 0.6f * sky);
-
-			if (strength <= 0.01f) {
-				continue;
-			}
-
-			int c = quad.color(i);
-			float mr = 1f - strength + strength * r;
-			float mg = 1f - strength + strength * g;
-			float mb = 1f - strength + strength * b;
-			quad.color(i, (c & 0xFF000000)
-					| ((int) (((c >> 16) & 0xFF) * mr) << 16)
-					| ((int) (((c >> 8) & 0xFF) * mg) << 8)
-					| (int) ((c & 0xFF) * mb));
 		}
+
+		float[] moving = t.moving;
+
+		for (int j = 0; j < moving.length; j += DynamicLights.COLOR_STRIDE) {
+			float w = DynamicLights.falloff(moving[j + 3], moving[j] - px, moving[j + 1] - py, moving[j + 2] - pz);
+
+			if (w > 0) {
+				sumW += w;
+				r += moving[j + 4] * w;
+				g += moving[j + 5] * w;
+				b += moving[j + 6] * w;
+				coloured |= moving[j + 4] != 1f || moving[j + 5] != 1f || moving[j + 6] != 1f;
+			}
+		}
+
+		if (!coloured || sumW <= 0) {
+			return argb;
+		}
+
+		// Average colour, normalised so the brightest channel is 1 (tinting shifts hue, brightness stays vanilla's).
+		float max = Math.max(r, Math.max(g, b));
+		r /= max;
+		g /= max;
+		b /= max;
+
+		// Full tint once block light reaches 8; faded where sky light is present (outdoors).
+		float block = Math.min(1f, (light & 0xFFFFF) / 16f / 8f);
+		float sky = ((light >>> 20) & 0xF) / 15f;
+		float strength = VisualConfig.coloredLightStrength * block * (1f - 0.6f * sky);
+
+		if (strength <= 0.01f) {
+			return argb;
+		}
+
+		float mr = 1f - strength + strength * r;
+		float mg = 1f - strength + strength * g;
+		float mb = 1f - strength + strength * b;
+		return (argb & 0xFF000000)
+				| ((int) (((argb >> 16) & 0xFF) * mr) << 16)
+				| ((int) (((argb >> 8) & 0xFF) * mg) << 8)
+				| (int) ((argb & 0xFF) * mb);
 	}
 
 	/** For tests: number of indexed placed coloured sources. */

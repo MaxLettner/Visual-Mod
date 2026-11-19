@@ -3,7 +3,7 @@
 	"id": "visualmod",
 	"version": "${version}",
 	"name": "Visual Mod",
-	"description": "Lightweight client-side dynamic lights and colored torch light (soul blue, redstone red, copper green).",
+	"description": "Lightweight client-side dynamic lights and colored torch light (soul blue, redstone red, copper green). Requires Sodium.",
 	"authors": [
 		"Max Lettner"
 	],
@@ -27,6 +27,7 @@
 		"fabricloader": ">=0.20.1",
 		"minecraft": "~26.3",
 		"java": ">=25",
-		"fabric-api": "*"
+		"fabric-api": "*",
+		"sodium": ">=0.9.3-beta.5"
 	}
 }

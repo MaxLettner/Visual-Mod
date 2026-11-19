@@ -7,7 +7,8 @@
 		"ClientLevelMixin",
 		"EntityRendererMixin",
 		"IndigoBlockRendererMixin",
-		"LevelChunkMixin"
+		"LevelChunkMixin",
+		"SodiumBlockRendererMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
