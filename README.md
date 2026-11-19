@@ -3,6 +3,8 @@
 A small, **client-side only** Fabric mod for Minecraft **26.3** that makes the game look a little nicer without costing performance.
 It works on any server (vanilla, Paper, other modded servers), because nothing is sent to or needed on the server.
 
+![In-game test screenshots: glowing ores, held torch, armor stand with lantern, dropped glowstone, and vanilla for comparison](docs/screenshots.png)
+
 ## Features
 
 ### Glowing ores
@@ -67,6 +69,24 @@ Restart the game after changing settings. Ore changes also apply after a resourc
 
 The jar ends up in `build/libs/`. Building needs JDK 25.
 Every push also builds the jar on GitHub Actions (see `.github/workflows/build.yml`).
+
+## Testing
+
+```sh
+./gradlew runClientGameTest
+```
+
+This starts the real game, builds a sealed dark room with ores, and checks every feature:
+it takes screenshots and compares their brightness.
+The checks are: ore glow on vs off, holding a torch, putting it away, an armor stand holding a lantern, and dropped glowstone.
+It also forces every mixin to apply, so a broken mixin target fails the test.
+Screenshots are saved to `build/run/clientGameTest/screenshots/`.
+
+To run it without a monitor or GPU (Linux), you need Xvfb plus Mesa's software OpenGL/Vulkan drivers:
+
+```sh
+LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew runClientGameTest
+```
 
 ## Compatibility notes
 

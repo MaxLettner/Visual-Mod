@@ -41,6 +41,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			int x = p.getX(), y = p.getY(), z = p.getZ();
 
 			// Sealed 9x5x9 stone room around the player: no sky light gets in.
+			cmd(singleplayer, "gamerule send_command_feedback false");
 			cmd(singleplayer, "time set midnight");
 			cmd(singleplayer, "fill %d %d %d %d %d %d minecraft:stone hollow", x - 5, y - 1, z - 5, x + 5, y + 5, z + 5);
 			// Ores on the north wall.
@@ -49,7 +50,13 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			cmd(singleplayer, "setblock %d %d %d minecraft:coal_ore", x + 2, y + 1, z - 5);
 			cmd(singleplayer, "setblock %d %d %d minecraft:gold_ore", x - 1, y + 2, z - 5);
 			cmd(singleplayer, "setblock %d %d %d minecraft:emerald_ore", x + 1, y + 2, z - 5);
-			cmd(singleplayer, "tp @p %d.5 %d %d.5 180 0", x, y, z + 2);
+			// Stand 4 blocks from the ore wall, with the HUD hidden so only the world is measured.
+			cmd(singleplayer, "tp @p %d.5 %d %d.5 180 0", x, y, z - 1);
+			context.runOnClient(client -> {
+				if (!client.gui.hud.isHidden()) {
+					client.gui.hud.toggle();
+				}
+			});
 			context.waitTicks(5);
 			context.getInput().lookAt(new BlockPos(x, y + 1, z - 5));
 			settle(context, singleplayer);
@@ -62,36 +69,36 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			settle(context, singleplayer);
 			check(context.computeOnClient(client -> DynamicLights.hasSources()), "holding a torch registers a light source");
 			double torch = shot(context, "2_holding_torch");
-			check(torch > dark + 15, "holding a torch brightens the room (%.1f -> %.1f)".formatted(dark, torch));
+			check(torch > dark * 1.5, "holding a torch brightens the room (%.1f -> %.1f)".formatted(dark, torch));
 
 			// Putting it away must remove the light again.
 			cmd(singleplayer, "item replace entity @p weapon.mainhand with minecraft:air");
 			settle(context, singleplayer);
 			check(!context.computeOnClient(client -> DynamicLights.hasSources()), "light source removed after putting the torch away");
 			double after = shot(context, "3_torch_put_away");
-			check(Math.abs(after - dark) < 5, "room is dark again (%.1f vs %.1f)".formatted(after, dark));
+			check(Math.abs(after - dark) < 2, "room is dark again (%.1f vs %.1f)".formatted(after, dark));
 
 			// A mob/armor stand holding a lantern.
-			cmd(singleplayer, "summon minecraft:armor_stand %d %d %d", x, y, z - 2);
+			cmd(singleplayer, "summon minecraft:armor_stand %d.5 %d %d.5", x + 2, y, z - 3);
 			context.waitTicks(5);
 			cmd(singleplayer, "item replace entity @e[type=minecraft:armor_stand,limit=1] weapon.mainhand with minecraft:lantern");
 			settle(context, singleplayer);
 			double stand = shot(context, "4_armor_stand_with_lantern");
-			check(stand > dark + 10, "armor stand holding a lantern lights the room (%.1f)".formatted(stand));
+			check(stand > dark * 1.3, "armor stand holding a lantern lights the room (%.1f)".formatted(stand));
 			cmd(singleplayer, "kill @e[type=minecraft:armor_stand]");
 
 			// A dropped glowstone block.
-			cmd(singleplayer, "summon minecraft:item %d.5 %d %d.5 {Item:{id:\"minecraft:glowstone\",count:1},PickupDelay:32767}", x, y, z - 3);
+			cmd(singleplayer, "summon minecraft:item %d.5 %d %d.5 {Item:{id:\"minecraft:glowstone\",count:1},PickupDelay:32767}", x - 2, y, z - 3);
 			settle(context, singleplayer);
 			double dropped = shot(context, "5_dropped_glowstone");
-			check(dropped > dark + 10, "dropped glowstone lights the room (%.1f)".formatted(dropped));
+			check(dropped > dark * 1.3, "dropped glowstone lights the room (%.1f)".formatted(dropped));
 			cmd(singleplayer, "kill @e[type=minecraft:item]");
 			settle(context, singleplayer);
 
 			// Ore glow off, for comparison with screenshot 1.
 			VisualConfig.oreGlow = false;
 			CompletableFuture<?> reload = context.computeOnClient(client -> client.reloadResourcePacks());
-			context.waitFor(client -> reload.isDone(), 20 * 60 * 5);
+			context.waitFor(client -> reload.isDone() && client.gui.overlay() == null, 20 * 60 * 5);
 			settle(context, singleplayer);
 			double noGlow = shot(context, "6_ore_glow_off");
 			check(dark > noGlow + 0.5, "ores are brighter with ore glow on (%.2f on vs %.2f off)".formatted(dark, noGlow));
@@ -111,7 +118,7 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 		context.waitTicks(5);
 	}
 
-	/** Takes a screenshot and returns the mean brightness (0-255) of the middle third of the screen. */
+	/** Takes a screenshot and returns the mean brightness (0-255) of the whole screen. */
 	private static double shot(ClientGameTestContext context, String name) {
 		Path path = context.takeScreenshot(name);
 
@@ -120,8 +127,8 @@ public class VisualModClientGameTest implements FabricClientGameTest {
 			long sum = 0;
 			int count = 0;
 
-			for (int py = h / 3; py < 2 * h / 3; py++) {
-				for (int px = w / 3; px < 2 * w / 3; px++) {
+			for (int py = 0; py < h; py++) {
+				for (int px = 0; px < w; px++) {
 					int argb = image.getPixel(px, py);
 					sum += ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
 					count += 3;

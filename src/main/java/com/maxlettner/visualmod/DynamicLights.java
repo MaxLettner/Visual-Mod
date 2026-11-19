@@ -41,7 +41,10 @@ import net.minecraft.world.phys.Vec3;
  * </ul>
  */
 public final class DynamicLights {
-	/** Light falls off linearly to zero at this distance (blocks) from the source. */
+	/**
+	 * Light reaches at most this far (blocks) from the source. Kept below 8 so a source touches at
+	 * most 2 chunk sections per axis (8 in total) when it moves.
+	 */
 	public static final float RADIUS = 7.5f;
 	private static final float RADIUS_SQ = RADIUS * RADIUS;
 	/** Stride of one source in {@link #snapshot}: x, y, z, luminance. */
@@ -101,7 +104,10 @@ public final class DynamicLights {
 			float distSq = dx * dx + dy * dy + dz * dz;
 
 			if (distSq < RADIUS_SQ) {
-				float light = s[i + 3] * (1f - (float) Math.sqrt(distSq) / RADIUS);
+				// Vanilla-like falloff (-1 per block), faded out over the last 2 blocks of the radius
+				// so there is no hard edge where re-meshing stops.
+				float dist = (float) Math.sqrt(distSq);
+				float light = (s[i + 3] - dist) * Math.min(1f, (RADIUS - dist) * 0.5f);
 
 				if (light > best) {
 					best = light;
